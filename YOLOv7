@@ -1,0 +1,70 @@
+!nvidia-smi
+import os
+HOME = os.getcwd()
+print(HOME)
+# clone YOLOv7 repository
+%cd {HOME}
+!git clone https://github.com/WongKinYiu/yolov7
+
+# navigate to yolov7 directory and checkout u7 branch of YOLOv7 - this is hash of lates commit from u7 branch as of 12/21/2022
+%cd {HOME}/yolov7
+!git checkout 44f30af0daccb1a3baecc5d80eae22948516c579
+%cd {HOME}/yolov7/seg
+!pip install numpy==1.23.5
+!pip install roboflow
+!pip install --upgrade pip
+!pip install -r requirements.txt
+import os
+HOME = os.getcwd()
+
+print(HOME)
+# download COCO starting checkpoint to yolov7/seg directory
+%cd {HOME}/yolov7/seg
+!wget https://github.com/WongKinYiu/yolov7/releases/download/v0.1/yolov7-seg.pt
+
+WEIGHTS_PATH = f"{HOME}/yolov7/seg/yolov7-seg.pt"
+# download example image to yolov7/seg directory
+%cd {HOME}/yolov7/seg
+!wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=1sPYHUcIW48sJ67kh5MHOI3GfoXlYNOfJ' -O dog.jpeg
+
+IMAGE_PATH = f"{HOME}/yolov7/seg/dog.jpeg"
+%cd {HOME}/yolov7/seg
+!python segment/predict.py --weights $WEIGHTS_PATH --source $IMAGE_PATH --name coco
+
+RESULT_IMAGE_PATH = f"{HOME}/yolov7/seg/runs/predict-seg/coco/dog.jpeg"#"/content/yolov7/seg/dog.jpeg"
+
+from IPython.display import Image, display
+
+display(Image(filename=RESULT_IMAGE_PATH))
+%cd {HOME}/yolov7/seg
+
+from roboflow import Roboflow
+
+rf = Roboflow(api_key="SWyQyetcJn4CMPxMD4Gg")
+project = rf.workspace("sjce-fpqrm").project("swetha")
+dataset = project.version(2).download("yolov7")
+%cd {HOME}/yolov7/seg
+!python segment/train.py --batch 16 \
+ --epochs 200 \
+ --data {dataset.location}/data.yaml \
+ --weights $WEIGHTS_PATH \
+ --device 0 \
+ --name custom
+from IPython.display import Image, display
+
+display(Image(filename=f"{HOME}/yolov7/seg/runs/train-seg/custom/val_batch0_labels.jpg"))
+%cd {HOME}/yolov7/seg
+!python segment/predict.py \
+--weights {HOME}/yolov7/seg/runs/train-seg/custom/weights/best.pt \
+--conf 0.25 \
+--source {dataset.location}/test/images
+import glob
+from IPython.display import Image, display
+
+for imageName in glob.glob('/content/yolov7/seg/runs/predict-seg/exp/*.jpg')[:5]:
+      display(Image(filename=imageName))
+      print("\n")
+%cd /content/yolov7/seg/runs
+!zip -r epoch200.zip /content/yolov7/seg/runs
+from google.colab import files
+files.download('epoch200.zip')
